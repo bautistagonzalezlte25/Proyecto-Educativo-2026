@@ -1,0 +1,1743 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>“S.E.P.A: SIMULADOR EDUCATIVO DE PROTOCOLOS DE ARMAMENTO” | Escuela de Suboficiales y Agentes</title>
+    <!-- Tailwind CSS -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Tone.js para efectos sonoros tácticos y alertas (sin URLs externas) -->
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/tone/14.8.49/Tone.js"></script>
+    <!-- Google Fonts: Inter & JetBrains Mono -->
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700;800&family=JetBrains+Mono:wght@500;700&display=swap" rel="stylesheet">
+    
+    <script>
+        tailwind.config = {
+            theme: {
+                extend: {
+                    fontFamily: {
+                        sans: ['Inter', 'sans-serif'],
+                        mono: ['JetBrains Mono', 'monospace'],
+                    },
+                    colors: {
+                        tuc: {
+                            navy: '#0a1628',
+                            dark: '#0f213d',
+                            slate: '#1e293b',
+                            steel: '#334155',
+                            celeste: '#38bdf8',
+                            gold: '#eab308',
+                            goldDark: '#ca8a04',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+
+    <style>
+        /* Estilos personalizados para animaciones de piezas flotantes y estética táctica */
+        body {
+            background-color: #070f1c;
+            color: #f8fafc;
+            overflow-x: hidden;
+        }
+
+        .tactical-grid {
+            background-image: 
+                linear-gradient(to right, rgba(56, 189, 248, 0.05) 1px, transparent 1px),
+                linear-gradient(to bottom, rgba(56, 189, 248, 0.05) 1px, transparent 1px);
+            background-size: 28px 28px;
+        }
+
+        /* Animación de flotación sutil para piezas extraídas */
+        @keyframes floatPiece {
+            0%, 100% { transform: translateY(0px); }
+            50% { transform: translateY(-4px); }
+        }
+
+        .floating-part {
+            animation: floatPiece 3s ease-in-out infinite;
+            cursor: grab;
+            transition: filter 0.2s ease, transform 0.2s ease;
+        }
+
+        .floating-part:active {
+            cursor: grabbing;
+        }
+
+        .svg-part-interactive {
+            cursor: pointer;
+            transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .svg-part-interactive:hover {
+            filter: drop-shadow(0 0 8px rgba(56, 189, 248, 0.85));
+        }
+
+        .part-highlight-next {
+            filter: drop-shadow(0 0 10px rgba(234, 179, 8, 0.9));
+        }
+
+        /* Animación de vibración en error de seguridad */
+        @keyframes shakeError {
+            0%, 100% { transform: translateX(0); }
+            20%, 60% { transform: translateX(-8px); }
+            40%, 80% { transform: translateX(8px); }
+        }
+
+        .shake-alert {
+            animation: shakeError 0.4s ease-in-out;
+        }
+
+        /* Transiciones suaves entre pantallas */
+        .screen-section {
+            display: none;
+            animation: fadeInScreen 0.35s ease-out forwards;
+        }
+
+        .screen-section.active {
+            display: block;
+        }
+
+        @keyframes fadeInScreen {
+            from { opacity: 0; transform: translateY(8px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        /* Zona de destino Drag & Drop */
+        .drop-zone-active {
+            border-color: #38bdf8 !important;
+            background-color: rgba(56, 189, 248, 0.12) !important;
+            box-shadow: inset 0 0 20px rgba(56, 189, 248, 0.25);
+        }
+    </style>
+</head>
+<body class="min-h-screen flex flex-col tactical-grid selection:bg-sky-500 selection:text-white">
+
+    
+    <header class="sticky top-0 z-40 bg-tuc-navy/95 backdrop-blur-md border-b border-slate-700/80 shadow-xl">
+        <div class="max-w-7xl mx-auto px-3 sm:px-6 py-2.5 flex flex-col md:flex-row items-center justify-between gap-3">
+            
+            <div class="flex items-center gap-3 w-full md:w-auto justify-between md:justify-start">
+                <div class="flex items-center gap-3 cursor-pointer" onclick="navigateTo(1)">
+                   <div class="w-11 h-11 rounded-xl bg-slate-900/80 border border-amber-400/50 flex items-center justify-center shadow-lg overflow-hidden p-1">
+  <img src="Logo.png" alt="Logo del proyecto" class="w-full h-full object-contain">
+</div>
+                    <div>
+                        <div class="flex items-center gap-2">
+                            <h1 class="text-base sm:text-lg font-extrabold tracking-tight text-white"> S.E.P.A. <span class="text-sky-400">SIMULADOR EDUCATIVO DE PROTOCOLOS DE ARMAMENTO</span></h1>
+                            <span class="hidden sm:inline-block text-[10px] font-mono uppercase px-2 py-0.5 rounded bg-amber-500/20 text-amber-300 border border-amber-500/40">v2.0 Ed. Policial</span>
+                        </div>
+                        <p class="text-[11px] sm:text-xs text-slate-300 font-medium">Escuela de Suboficiales y Agentes "Agente Juan Jose Vides" Policía de Tucumán</p>
+                    </div>
+                </div>
+
+               
+                <div id="mobile-weapon-badge" class="md:hidden text-xs font-mono bg-slate-800 border border-slate-600 px-2.5 py-1 rounded-lg text-sky-300">
+                    Bersa TPR 9
+                </div>
+            </div>
+
+   
+            <nav class="flex items-center gap-1.5 sm:gap-2 w-full md:w-auto justify-center bg-slate-900/90 p-1 rounded-xl border border-slate-700/80">
+                <button id="nav-btn-1" onclick="navigateTo(1)" class="flex-1 md:flex-none px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all flex items-center justify-center gap-1.5 bg-sky-600 text-white shadow">
+                    <span class="w-5 h-5 rounded-full bg-white/20 text-[11px] flex items-center justify-center font-mono">1</span>
+                    <span>Armamento</span>
+                </button>
+                <button id="nav-btn-2" onclick="navigateTo(2)" class="flex-1 md:flex-none px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all flex items-center justify-center gap-1.5 text-slate-300 hover:text-white hover:bg-slate-800">
+                    <span class="w-5 h-5 rounded-full bg-slate-700 text-[11px] flex items-center justify-center font-mono">2</span>
+                    <span>Simulador</span>
+                </button>
+                <button id="nav-btn-3" onclick="navigateTo(3)" class="flex-1 md:flex-none px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all flex items-center justify-center gap-1.5 text-slate-300 hover:text-white hover:bg-slate-800">
+                    <span class="w-5 h-5 rounded-full bg-slate-700 text-[11px] flex items-center justify-center font-mono">3</span>
+                    <span>Limpieza Segura</span>
+                </button>
+            </nav>
+        </div>
+    </header>
+
+
+    <div id="tactical-toast" class="fixed top-20 left-1/2 -translate-x-1/2 z-50 w-[92%] max-w-xl pointer-events-none opacity-0 transition-all duration-300 transform -translate-y-4">
+        <div id="tactical-toast-box" class="rounded-xl p-4 shadow-2xl border-2 flex items-start gap-3 backdrop-blur-md">
+            <div id="tactical-toast-icon" class="shrink-0 mt-0.5"></div>
+            <div class="flex-1">
+                <h4 id="tactical-toast-title" class="font-bold text-sm uppercase tracking-wider"></h4>
+                <p id="tactical-toast-msg" class="text-xs sm:text-sm mt-0.5 leading-relaxed"></p>
+            </div>
+        </div>
+    </div>
+
+    <!-- CONTENEDOR PRINCIPAL -->
+    <main class="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 py-6">
+
+        <!-- =====================================================================
+             PANTALLA 1: BIENVENIDA Y MENÚ PRINCIPAL (SELECTOR DE ARMAMENTO)
+             ===================================================================== -->
+        <section id="screen-1" class="screen-section active space-y-6">
+            <!-- Banner Institucional de Bienvenida -->
+            <div class="rounded-2xl bg-gradient-to-r from-tuc-navy via-tuc-dark to-slate-900 border border-slate-700/90 p-5 sm:p-7 shadow-2xl relative overflow-hidden">
+                <div class="absolute right-0 top-0 bottom-0 w-1/3 bg-gradient-to-l from-sky-500/10 to-transparent pointer-events-none"></div>
+                <div class="flex flex-col lg:flex-row lg:items-center justify-between gap-5 relative z-10">
+                    <div class="space-y-2 max-w-3xl">
+                        <div class="inline-flex items-center gap-2 px-3 py-1 rounded-full bg-sky-500/15 border border-sky-400/30 text-sky-300 text-xs font-semibold">
+                            <span>Proyecto Educativo • Licenciatura en Tecnología Educativa</span>
+                        </div>
+                        <h2 class="text-2xl sm:text-3xl font-extrabold text-white tracking-tight">
+                            Entrenamiento Virtual de Armamento Policial
+                        </h2>
+                        <p class="text-slate-300 text-sm sm:text-base leading-relaxed">
+                            Bienvenido, Aspirante. Seleccione una de las tres pistolas reglamentarias de dotación de la <strong class="text-amber-400">Policía de Tucumán</strong> para entrenar el desarme de campaña mediante piezas flotantes interactivas o repasar el protocolo de mantenimiento y limpieza segura.
+                        </p>
+                    </div>
+                    <div class="bg-slate-900/90 border border-amber-500/30 rounded-xl p-4 shrink-0 lg:w-72">
+                        <p class="text-xs font-mono uppercase text-amber-400 font-bold mb-1">Regla de Oro N° 1</p>
+                        <p class="text-xs text-slate-300 leading-relaxed">
+                            "Trate siempre toda arma de fuego como si estuviera cargada. Verifique visual y físicamente la recámara antes de iniciar cualquier desarme."
+                        </p>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Selector de las 3 Pistolas de Dotación -->
+            <div>
+                <h3 class="text-sm font-mono uppercase tracking-wider text-sky-400 font-bold mb-3 flex items-center gap-2">
+                    <span class="w-2 h-2 rounded-full bg-sky-400"></span>
+                    Paso 1: Seleccione el Arma Reglamentaria de Dotación
+                </h3>
+
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-4" id="weapon-cards-grid">
+                    <!-- Tarjeta 1: Bersa TPR 9mm -->
+                    <div id="card-tpr9" onclick="selectWeapon('tpr9')" class="weapon-card cursor-pointer rounded-2xl bg-slate-900/90 border-2 border-sky-500 p-5 transition-all hover:bg-slate-800/90 shadow-lg relative group">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-[11px] font-mono px-2.5 py-0.5 rounded-md bg-sky-500/20 text-sky-300 border border-sky-500/30">Industria Argentina</span>
+                            <span id="badge-tpr9" class="text-xs font-bold text-amber-400 flex items-center gap-1">● SELECCIONADA</span>
+                        </div>
+                        <h4 class="text-xl font-extrabold text-white group-hover:text-sky-300 transition-colors">Bersa TPR 9mm</h4>
+                        <p class="text-xs text-slate-400 mt-0.5">Evolución táctica de dotación policial</p>
+                        
+                        <!-- Silueta SVG Preview -->
+                        <div class="my-4 h-28 bg-slate-950/80 rounded-xl border border-slate-800 flex items-center justify-center p-3">
+                            <svg viewBox="0 0 240 120" class="w-full h-full">
+                                <!-- Corredera TPR -->
+                                <path d="M40 24 H195 L202 32 V46 H42 L38 38 Z" fill="#334155" stroke="#94a3b8" stroke-width="1.5"/>
+                                <path d="M55 28 H75 M60 32 H75 M65 36 H75 M165 28 H185 M165 32 H185 M165 36 H185" stroke="#64748b" stroke-width="1.5"/>
+                                <!-- Armazón y riel Picatinny -->
+                                <path d="M44 46 H198 V55 H155 L145 72 H108 L95 112 H52 L64 64 L44 54 Z" fill="#1e293b" stroke="#64748b" stroke-width="1.5"/>
+                                <!-- Guardamonte cuadrado táctico TPR -->
+                                <path d="M110 55 H148 L142 74 H106 Z" fill="none" stroke="#94a3b8" stroke-width="2"/>
+                                <!-- Palanca desarme -->
+                                <circle cx="132" cy="51" r="4" fill="#eab308"/>
+                                <rect x="122" y="49.5" width="10" height="3" rx="1" fill="#eab308"/>
+                                <!-- Base cargador -->
+                                <path d="M51 112 H96 L98 117 H49 Z" fill="#0f172a" stroke="#38bdf8" stroke-width="1.2"/>
+                            </svg>
+                        </div>
+
+                        <div class="flex items-center justify-between text-xs text-slate-300 pt-2 border-t border-slate-800">
+                            <span>Sistema: <strong class="text-white">Browning Mejorado</strong></span>
+                            <span>Cap: <strong class="text-sky-400">17+1</strong></span>
+                        </div>
+                    </div>
+
+                    <!-- Tarjeta 2: Bersa Thunder Pro 9mm -->
+                    <div id="card-thunder9" onclick="selectWeapon('thunder9')" class="weapon-card cursor-pointer rounded-2xl bg-slate-900/90 border-2 border-slate-700/80 p-5 transition-all hover:bg-slate-800/90 shadow-lg relative group">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-[11px] font-mono px-2.5 py-0.5 rounded-md bg-sky-500/20 text-sky-300 border border-sky-500/30">Industria Argentina</span>
+                            <span id="badge-thunder9" class="text-xs font-bold text-slate-500">Seleccionar</span>
+                        </div>
+                        <h4 class="text-xl font-extrabold text-white group-hover:text-sky-300 transition-colors">Bersa Thunder Pro 9mm</h4>
+                        <p class="text-xs text-slate-400 mt-0.5">Doble/Simple acción • Decocker ambidiestro</p>
+                        
+                        <!-- Silueta SVG Preview -->
+                        <div class="my-4 h-28 bg-slate-950/80 rounded-xl border border-slate-800 flex items-center justify-center p-3">
+                            <svg viewBox="0 0 240 120" class="w-full h-full">
+                                <!-- Corredera Thunder Pro -->
+                                <path d="M38 25 H194 L200 34 V46 H40 Z" fill="#475569" stroke="#cbd5e1" stroke-width="1.5"/>
+                                <path d="M52 29 V42 M57 29 V42 M62 29 V42 M67 29 V42" stroke="#94a3b8" stroke-width="1.5"/>
+                                <!-- Armazón ergonómico Thunder -->
+                                <path d="M42 46 H196 V54 H152 L144 73 H108 L94 112 H53 L65 65 L42 54 Z" fill="#1e293b" stroke="#64748b" stroke-width="1.5"/>
+                                <!-- Guardamonte curvo -->
+                                <path d="M110 54 H147 C147 68 138 74 106 74 Z" fill="none" stroke="#94a3b8" stroke-width="2"/>
+                                <!-- Palanca desarme -->
+                                <circle cx="130" cy="51" r="4" fill="#eab308"/>
+                                <rect x="120" y="49.5" width="10" height="3" rx="1" fill="#eab308"/>
+                                <!-- Seguro/Decocker -->
+                                <rect x="68" y="41" width="14" height="4" rx="2" fill="#38bdf8"/>
+                                <path d="M52 112 H95 L97 117 H50 Z" fill="#0f172a" stroke="#38bdf8" stroke-width="1.2"/>
+                            </svg>
+                        </div>
+
+                        <div class="flex items-center justify-between text-xs text-slate-300 pt-2 border-t border-slate-800">
+                            <span>Acción: <strong class="text-white">DA/SA + Decocker</strong></span>
+                            <span>Cap: <strong class="text-sky-400">17+1</strong></span>
+                        </div>
+                    </div>
+
+                    <!-- Tarjeta 3: Taurus PT917 9mm -->
+                    <div id="card-pt917" onclick="selectWeapon('pt917')" class="weapon-card cursor-pointer rounded-2xl bg-slate-900/90 border-2 border-slate-700/80 p-5 transition-all hover:bg-slate-800/90 shadow-lg relative group">
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-[11px] font-mono px-2.5 py-0.5 rounded-md bg-emerald-500/20 text-emerald-300 border border-emerald-500/30">Brasil • Forjas Taurus</span>
+                            <span id="badge-pt917" class="text-xs font-bold text-slate-500">Seleccionar</span>
+                        </div>
+                        <h4 class="text-xl font-extrabold text-white group-hover:text-sky-300 transition-colors">Taurus PT917 9mm</h4>
+                        <p class="text-xs text-slate-400 mt-0.5">Corredera abierta • Bloque oscilante</p>
+                        
+                        <!-- Silueta SVG Preview -->
+                        <div class="my-4 h-28 bg-slate-950/80 rounded-xl border border-slate-800 flex items-center justify-center p-3">
+                            <svg viewBox="0 0 240 120" class="w-full h-full">
+                                <!-- Cañón expuesto superior estilo Beretta/Taurus -->
+                                <rect x="115" y="21" width="92" height="10" rx="2" fill="#94a3b8" stroke="#e2e8f0" stroke-width="1"/>
+                                <!-- Corredera abierta -->
+                                <path d="M38 25 H115 V33 H196 V46 H40 Z" fill="#334155" stroke="#94a3b8" stroke-width="1.5"/>
+                                <!-- Armazón PT917 -->
+                                <path d="M42 46 H194 V54 H152 L144 74 H108 L94 112 H53 L65 65 L42 54 Z" fill="#1e293b" stroke="#64748b" stroke-width="1.5"/>
+                                <!-- Guardamonte -->
+                                <path d="M110 54 H147 L142 74 H106 Z" fill="none" stroke="#94a3b8" stroke-width="2"/>
+                                <!-- Palanca desarme + botón derecho -->
+                                <circle cx="136" cy="50" r="4.5" fill="#eab308"/>
+                                <rect x="125" y="48.5" width="11" height="3" rx="1" fill="#eab308"/>
+                                <path d="M52 112 H95 L97 117 H50 Z" fill="#0f172a" stroke="#38bdf8" stroke-width="1.2"/>
+                            </svg>
+                        </div>
+
+                        <div class="flex items-center justify-between text-xs text-slate-300 pt-2 border-t border-slate-800">
+                            <span>Cierre: <strong class="text-white">Bloque Oscilante</strong></span>
+                            <span>Cap: <strong class="text-sky-400">17+1 / 19+1</strong></span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Ficha Técnica Dinámica + Botones de Acción hacia Pantalla 2 y Pantalla 3 -->
+            <div class="rounded-2xl bg-slate-900/95 border border-slate-700 p-5 sm:p-6 shadow-xl">
+                <div class="grid grid-cols-1 lg:grid-cols-12 gap-6 items-center">
+                    <!-- Ficha Técnica -->
+                    <div class="lg:col-span-7 space-y-3">
+                        <div class="flex items-center gap-2">
+                            <span class="px-2.5 py-0.5 rounded bg-amber-500/20 text-amber-300 text-xs font-mono font-bold uppercase">Ficha Técnica Activa</span>
+                            <h4 id="spec-title" class="text-lg sm:text-xl font-bold text-white">Bersa TPR 9mm</h4>
+                        </div>
+                        <div class="grid grid-cols-2 sm:grid-cols-4 gap-3">
+                            <div class="bg-slate-950/70 p-3 rounded-xl border border-slate-800">
+                                <span class="text-[11px] text-slate-400 block">Calibre</span>
+                                <span id="spec-caliber" class="text-sm font-mono font-bold text-sky-400">9x19 mm Parabellum</span>
+                            </div>
+                            <div class="bg-slate-950/70 p-3 rounded-xl border border-slate-800">
+                                <span class="text-[11px] text-slate-400 block">Capacidad</span>
+                                <span id="spec-capacity" class="text-sm font-mono font-bold text-white">17 + 1 cartuchos</span>
+                            </div>
+                            <div class="bg-slate-950/70 p-3 rounded-xl border border-slate-800">
+                                <span class="text-[11px] text-slate-400 block">Sistema Disparo</span>
+                                <span id="spec-action" class="text-sm font-bold text-white">DA / SA Martillo Ext.</span>
+                            </div>
+                            <div class="bg-slate-950/70 p-3 rounded-xl border border-slate-800">
+                                <span class="text-[11px] text-slate-400 block">Acerrojado</span>
+                                <span id="spec-locking" class="text-sm font-bold text-amber-300">Browning Mejorado</span>
+                            </div>
+                        </div>
+                        <p id="spec-detail" class="text-xs sm:text-sm text-slate-300 bg-slate-800/50 p-3 rounded-xl border-l-4 border-sky-400">
+                            <strong>Particularidad Mecánica:</strong> Posee palanca de desarme en el costado izquierdo del armazón (se gira 90° hacia abajo tras alinear marcas), indicador visual/táctil de bala en recámara superior y controles ambidiestros.
+                        </p>
+                    </div>
+
+                    <!-- Botones Principales de Navegación Funcional -->
+                    <div class="lg:col-span-5 flex flex-col gap-3">
+                        <button onclick="navigateTo(2)" class="w-full py-4 px-5 rounded-xl bg-gradient-to-r from-sky-600 to-blue-700 hover:from-sky-500 hover:to-blue-600 text-white font-bold text-left shadow-lg shadow-sky-900/40 border border-sky-400/40 transition-all flex items-center justify-between group">
+                            <div>
+                                <span class="text-[11px] font-mono uppercase text-sky-200 block">Módulo Práctico • Pantalla 2</span>
+                                <span class="text-base sm:text-lg">Simulador de Desarme y Arme</span>
+                            </div>
+                            <svg class="w-6 h-6 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 7l5 5m0 0l-5 5m5-5H6"/>
+                            </svg>
+                        </button>
+
+                        <button onclick="navigateTo(3)" class="w-full py-4 px-5 rounded-xl bg-gradient-to-r from-slate-800 to-slate-900 hover:from-slate-700 hover:to-slate-800 text-white font-bold text-left shadow-lg border border-amber-500/40 transition-all flex items-center justify-between group">
+                            <div>
+                                <span class="text-[11px] font-mono uppercase text-amber-400 block">Módulo Protocolar • Pantalla 3</span>
+                                <span class="text-base sm:text-lg">Instructivo de Limpieza Segura</span>
+                            </div>
+                            <svg class="w-6 h-6 text-amber-400 transform group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- =====================================================================
+             PANTALLA 2: SIMULADOR INTERACTIVO DE DESARME Y ARME (PIEZAS FLOTANTES)
+             ===================================================================== -->
+        <section id="screen-2" class="screen-section space-y-5">
+            <!-- Barra Superior del Simulador -->
+            <div class="rounded-2xl bg-slate-900/95 border border-slate-700 p-4 sm:p-5 flex flex-col lg:flex-row items-start lg:items-center justify-between gap-4 shadow-xl">
+                <div>
+                    <div class="flex items-center gap-2 flex-wrap">
+                        <span class="px-2.5 py-0.5 rounded bg-sky-500/20 text-sky-300 text-xs font-mono font-bold">BANCO DE ARMERO INTERACTIVO</span>
+                        <h2 id="sim-weapon-name" class="text-xl sm:text-2xl font-extrabold text-white">Bersa TPR 9mm</h2>
+                    </div>
+                    <p id="sim-instruction-banner" class="text-xs sm:text-sm text-amber-300 font-medium mt-1">
+                        Paso 1 de 5: Toque o arrastre el CARGADOR hacia la Mesa de Armero para despejar el arma.
+                    </p>
+                </div>
+
+                <!-- Controles de Modo y Reinicio -->
+                <div class="flex flex-wrap items-center gap-2 w-full lg:w-auto">
+                    <div class="flex bg-slate-950 p-1 rounded-xl border border-slate-700 flex-1 sm:flex-none">
+                        <button id="mode-disassemble-btn" onclick="setSimulatorMode('disassemble')" class="flex-1 sm:flex-none px-3 py-2 rounded-lg text-xs font-bold bg-sky-600 text-white transition-all">
+                            Modo Desarme
+                        </button>
+                        <button id="mode-assemble-btn" onclick="setSimulatorMode('assemble')" class="flex-1 sm:flex-none px-3 py-2 rounded-lg text-xs font-bold text-slate-400 hover:text-white transition-all">
+                            Modo Arme
+                        </button>
+                    </div>
+
+                    <button onclick="resetSimulator()" class="px-3.5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-slate-200 flex items-center gap-1.5 transition-all">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15"/></svg>
+                        Reiniciar
+                    </button>
+                </div>
+            </div>
+
+            <!-- Barra de Progreso y Métricas Pedagógicas -->
+            <div class="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                <div class="sm:col-span-2 bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 flex flex-col justify-center">
+                    <div class="flex justify-between text-xs font-mono mb-1.5">
+                        <span class="text-slate-400">PROGRESO DE SECUENCIA TÉCNICA</span>
+                        <span id="sim-progress-text" class="text-sky-400 font-bold">0 / 5 PIEZAS</span>
+                    </div>
+                    <div class="w-full h-3 bg-slate-950 rounded-full overflow-hidden border border-slate-800">
+                        <div id="sim-progress-bar" class="h-full bg-gradient-to-r from-sky-500 to-emerald-400 transition-all duration-500" style="width: 0%"></div>
+                    </div>
+                </div>
+
+                <div class="bg-slate-900/90 border border-slate-800 rounded-xl p-3.5 flex items-center justify-between">
+                    <div>
+                        <span class="text-[11px] font-mono text-slate-400 block">FALTAS DE SEGURIDAD</span>
+                        <span id="sim-error-count" class="text-xl font-extrabold font-mono text-emerald-400">0 Errores</span>
+                    </div>
+                    <div class="text-right">
+                        <span class="text-[11px] font-mono text-slate-400 block">ORDEN ESTRICTO</span>
+                        <span class="text-xs font-bold text-amber-400">Protocolo Policial</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Área Principal de Simulación: Arma Ensamblada vs Mesa de Armero (Piezas Flotantes) -->
+            <div class="grid grid-cols-1 lg:grid-cols-12 gap-5">
+                
+                <!-- Lienzo Izquierdo: Vista Modular Interactiva del Arma -->
+                <div id="weapon-stage-box" class="lg:col-span-7 rounded-2xl bg-slate-950/90 border-2 border-slate-800 p-4 sm:p-6 flex flex-col justify-between relative min-h-[380px] shadow-inner">
+                    <div class="flex items-center justify-between text-xs text-slate-400 font-mono mb-2">
+                        <span>VISTA ESQUEMÁTICA EN DESPIECE</span>
+                        <span class="text-sky-400">Toque o arrastre la pieza →</span>
+                    </div>
+
+                    <!-- Contenedor SVG Modular del Arma -->
+                    <div id="svg-weapon-container" class="flex-1 flex items-center justify-center my-2 select-none">
+                        <!-- El SVG detallado se inyecta dinámicamente según el arma seleccionada -->
+                    </div>
+
+                    <!-- Inspector Técnico de Pieza (Muestra info al tocar o pasar cursor) -->
+                    <div id="part-inspector" class="mt-3 rounded-xl bg-slate-900/95 border border-slate-700/90 p-3.5 flex items-start gap-3">
+                        <div class="w-8 h-8 rounded-lg bg-sky-500/20 border border-sky-400/40 flex items-center justify-center shrink-0 text-sky-400 font-mono font-bold text-sm">
+                            i
+                        </div>
+                        <div>
+                            <h5 id="inspector-part-name" class="text-xs sm:text-sm font-bold text-white">Inspector de Nomenclatura Técnica</h5>
+                            <p id="inspector-part-desc" class="text-xs text-slate-300 mt-0.5 leading-relaxed">
+                                Pase el cursor o toque cualquier componente del arma para visualizar su denominación reglamentaria y función mecánica.
+                            </p>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Lienzo Derecho: Mesa de Armero (Bandeja de Piezas Flotantes) -->
+                <div id="armorer-bench" 
+                     ondragover="handleDragOver(event)" 
+                     ondragleave="handleDragLeave(event)" 
+                     ondrop="handleDropOnBench(event)"
+                     class="lg:col-span-5 rounded-2xl bg-slate-900/95 border-2 border-dashed border-slate-700 p-4 sm:p-5 flex flex-col justify-between transition-all min-h-[380px]">
+                    <div>
+                        <div class="flex items-center justify-between mb-3 pb-2 border-b border-slate-800">
+                            <div>
+                                <h4 class="text-sm font-extrabold uppercase tracking-wider text-amber-400">Mesa de Armero (Despiece)</h4>
+                                <p class="text-[11px] text-slate-400">Piezas flotantes extraídas en orden reglamentario</p>
+                            </div>
+                            <span class="text-xs font-mono bg-slate-800 px-2 py-1 rounded text-slate-300">5 Ranuras</span>
+                        </div>
+
+                        <!-- 5 Ranuras de Piezas Flotantes -->
+                        <div id="bench-slots-container" class="space-y-2.5">
+                            <!-- Se generan dinámicamente las 5 ranuras -->
+                        </div>
+                    </div>
+
+                    <!-- Registro de Eventos / Log de Seguridad -->
+                    <div class="mt-4 pt-3 border-t border-slate-800">
+                        <span class="text-[11px] font-mono uppercase text-slate-400 block mb-1.5">Bitácora de Procedimiento:</span>
+                        <div id="sim-log-box" class="h-24 overflow-y-auto bg-slate-950 rounded-xl p-2.5 border border-slate-800 space-y-1 text-[11px] font-mono">
+                            <div class="text-sky-400">[SISTEMA] Banco listo. Inicie retirando el cargador.</div>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <!-- =====================================================================
+             PANTALLA 3: INSTRUCTIVO GUIADO DE DESARME Y LIMPIEZA SEGURA
+             ===================================================================== -->
+        <section id="screen-3" class="screen-section space-y-6">
+            <!-- Encabezado Pantalla 3 -->
+            <div class="rounded-2xl bg-slate-900/95 border border-slate-700 p-5 sm:p-6 shadow-xl flex flex-col md:flex-row md:items-center justify-between gap-4">
+                <div>
+                    <span class="px-2.5 py-0.5 rounded bg-amber-500/20 text-amber-300 text-xs font-mono font-bold uppercase">Protocolo de Mantenimiento</span>
+                    <h2 class="text-xl sm:text-2xl font-extrabold text-white mt-1">
+                        Desarme y Limpieza Segura: <span id="guide-weapon-title" class="text-sky-400">Bersa TPR 9mm</span>
+                    </h2>
+                    <p class="text-xs sm:text-sm text-slate-300 mt-1">
+                        Complete obligatoriamente el Checklist de Seguridad previo (Paso 0) para desbloquear la guía ilustrada de mantenimiento y la evaluación final.
+                    </p>
+                </div>
+                <button onclick="navigateTo(1)" class="self-start md:self-center px-4 py-2 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-600 text-xs font-bold text-slate-200 transition-all">
+                    Cambiar Arma
+                </button>
+            </div>
+
+            <!-- PASO 0 OBLIGATORIO: CHECKLIST DE SEGURIDAD -->
+            <div class="rounded-2xl bg-gradient-to-br from-red-950/40 via-slate-900 to-slate-900 border-2 border-red-500/50 p-5 sm:p-6 shadow-xl">
+                <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 mb-4">
+                    <div class="flex items-center gap-2.5">
+                        <div class="w-9 h-9 rounded-xl bg-red-500/20 border border-red-500/50 flex items-center justify-center text-red-400 font-extrabold">
+                            !
+                        </div>
+                        <div>
+                            <h3 class="text-base sm:text-lg font-extrabold text-white">PASO 0 OBLIGATORIO: Protocolo de Despeje Seguro</h3>
+                            <p class="text-xs text-red-300">Verifique y marque los 4 puntos críticos antes de manipular herramientas de limpieza.</p>
+                        </div>
+                    </div>
+                    <span id="checklist-status-badge" class="self-start sm:self-center px-3 py-1 rounded-full text-xs font-mono font-bold bg-red-500/20 text-red-300 border border-red-500/40">
+                        BLOQUEADO (0/4)
+                    </span>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-3" id="safety-checklist-grid">
+                    <label class="flex items-start gap-3 p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 hover:border-sky-500/50 cursor-pointer transition-all">
+                        <input type="checkbox" onchange="updateSafetyChecklist()" class="safety-chk mt-1 w-5 h-5 rounded accent-emerald-500 cursor-pointer">
+                        <span class="text-xs sm:text-sm text-slate-200">
+                            <strong class="text-amber-400 block">1. Dirección Segura / Tubo de Descarga:</strong>
+                            Mantener el cañón apuntando en todo momento hacia el tubo de descarga o zona segura establecida, dedo fuera del disparador.
+                        </span>
+                    </label>
+
+                    <label class="flex items-start gap-3 p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 hover:border-sky-500/50 cursor-pointer transition-all">
+                        <input type="checkbox" onchange="updateSafetyChecklist()" class="safety-chk mt-1 w-5 h-5 rounded accent-emerald-500 cursor-pointer">
+                        <span class="text-xs sm:text-sm text-slate-200">
+                            <strong class="text-amber-400 block">2. Extracción Total del Cargador:</strong>
+                            Presionar el retén del cargador, extraerlo completamente y colocarlo apartado en un sector separado de la mesa.
+                        </span>
+                    </label>
+
+                    <label class="flex items-start gap-3 p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 hover:border-sky-500/50 cursor-pointer transition-all">
+                        <input type="checkbox" onchange="updateSafetyChecklist()" class="safety-chk mt-1 w-5 h-5 rounded accent-emerald-500 cursor-pointer">
+                        <span class="text-xs sm:text-sm text-slate-200">
+                            <strong class="text-amber-400 block">3. Inspección Visual y Táctil de Recámara:</strong>
+                            Llevar la corredera hacia atrás, trabarla con el retén y verificar visualmente y con el dedo meñique que la recámara y alojamiento estén vacíos.
+                        </span>
+                    </label>
+
+                    <label class="flex items-start gap-3 p-3.5 rounded-xl bg-slate-950/80 border border-slate-800 hover:border-sky-500/50 cursor-pointer transition-all">
+                        <input type="checkbox" onchange="updateSafetyChecklist()" class="safety-chk mt-1 w-5 h-5 rounded accent-emerald-500 cursor-pointer">
+                        <span class="text-xs sm:text-sm text-slate-200">
+                            <strong class="text-amber-400 block">4. Área Libre de Munición Viva:</strong>
+                            Confirmar que no exista ningún cartucho 9mm sobre la mesa de limpieza antes de iniciar el mantenimiento.
+                        </span>
+                    </label>
+                </div>
+            </div>
+
+            <!-- CONTENIDO BLOQUEADO HASTA COMPLETAR EL PASO 0 -->
+            <div id="cleaning-guide-locked-overlay" class="rounded-2xl bg-slate-900/60 border border-slate-800 p-8 text-center space-y-2">
+                <div class="w-12 h-12 rounded-full bg-slate-800 mx-auto flex items-center justify-center text-amber-400">
+                    <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                </div>
+                <h4 class="text-base font-bold text-slate-200">Guía de Limpieza y Evaluación Bloqueadas</h4>
+                <p class="text-xs sm:text-sm text-slate-400 max-w-md mx-auto">
+                    Complete las 4 verificaciones de seguridad obligatorias en el cuadro superior para habilitar el instructivo técnico paso a paso.
+                </p>
+            </div>
+
+            <!-- GUÍA PASO A PASO ILUSTRADA + MICRO-EVALUACIÓN (Se muestra al completar los 4 checks) -->
+            <div id="cleaning-guide-unlocked-content" class="hidden space-y-6">
+                
+                <!-- 5 Pasos Técnicos Ilustrados -->
+                <div id="cleaning-steps-container" class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                    <!-- Inyectado dinámicamente según el arma seleccionada -->
+                </div>
+
+                <!-- Micro-Evaluación Rápida (3 Preguntas) -->
+                <div class="rounded-2xl bg-slate-900/95 border border-sky-500/40 p-5 sm:p-6 shadow-xl space-y-5">
+                    <div class="flex flex-col sm:flex-row sm:items-center justify-between gap-2 border-b border-slate-800 pb-4">
+                        <div>
+                            <span class="text-xs font-mono uppercase text-sky-400 font-bold">Validación de Aprendizaje</span>
+                            <h3 class="text-lg sm:text-xl font-extrabold text-white">Micro-Evaluación Técnica (<span id="quiz-weapon-label">Bersa TPR 9mm</span>)</h3>
+                        </div>
+                        <div id="quiz-score-badge" class="hidden px-4 py-1.5 rounded-xl bg-emerald-500/20 border border-emerald-400/50 text-emerald-300 font-mono font-bold text-sm">
+                            Puntaje: 0/3
+                        </div>
+                    </div>
+
+                    <div id="quiz-questions-container" class="space-y-4">
+                        <!-- Preguntas específicas del arma inyectadas aquí -->
+                    </div>
+
+                    <div class="flex flex-wrap items-center justify-between gap-3 pt-2">
+                        <button onclick="evaluateQuiz()" class="px-6 py-3 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white font-bold text-sm shadow-lg transition-all">
+                            Verificar Respuestas
+                        </button>
+                        <button onclick="resetQuiz()" class="px-4 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-300 text-xs font-bold border border-slate-600">
+                            Reintentar Evaluación
+                        </button>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+    </main>
+
+    <!-- PIE DE PÁGINA INSTITUCIONAL -->
+    <footer class="border-t border-slate-800/80 bg-tuc-navy/90 py-4 px-4 mt-8">
+        <div class="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-2 text-xs text-slate-400">
+            <p><strong class="text-slate-200">S.E.P.A: Simulador Educativo de Protocolos de Armamento</strong> • Proyecto Educativo - Licenciatura en Tecnología Educativa</p>
+            <p class="font-mono text-[11px] text-sky-400/80">Escuela de Suboficiales y Agentes "Agente Juan Jose Vides" Policía de Tucumán</p>
+        </div>
+    </footer>
+
+    <!-- =========================================================================
+         LÓGICA DE APLICACIÓN, DATOS TÉCNICOS DE ARMAMENTO Y MOTOR DE SIMULACIÓN
+         ========================================================================= -->
+    <script>
+        /**
+         * BASE DE CONOCIMIENTO TÉCNICO DE LAS 3 PISTOLAS DE DOTACIÓN
+         * Contiene especificaciones, orden estricto de desarme, descripciones de piezas,
+         * pasos ilustrados de limpieza y preguntas de evaluación específicas.
+         */
+        const WEAPONS_DATA = {
+            tpr9: {
+                id: 'tpr9',
+                name: 'Bersa TPR 9mm',
+                shortName: 'Bersa TPR 9',
+                origin: 'Industria Argentina (Ramos Mejía, Bs. As.)',
+                caliber: '9x19 mm Parabellum',
+                capacity: '17 + 1 cartuchos',
+                action: 'DA/SA Martillo Externo',
+                locking: 'Browning Mejorado',
+                detail: 'Particularidad Mecánica: Posee palanca de desarme en el costado izquierdo del armazón (se gira 90° hacia abajo tras alinear muescas), indicador táctil/visual de bala en recámara superior y retenes totalmente ambidiestros.',
+                parts: {
+                    magazine: {
+                        name: '1. Cargador Metálico (17 cartuchos)',
+                        short: 'Cargador',
+                        role: 'Aloja la munición de dotación. Primer elemento obligatorio a extraer por seguridad.'
+                    },
+                    takedown: {
+                        name: '2. Palanca de Desarme Lateral',
+                        short: 'Palanca de Desarme',
+                        role: 'Eje pasante izquierdo que vincula el cañón al armazón. En la TPR 9 se gira 90° en sentido horario hacia abajo.'
+                    },
+                    slide: {
+                        name: '3. Conjunto Corredera',
+                        short: 'Corredera',
+                        role: 'Aloja la aguja percutora con seguro automático, uña extractora y aparatos de puntería de 3 puntos.'
+                    },
+                    recoil: {
+                        name: '4. Resorte Recuperador y Guía',
+                        short: 'Resorte y Guía',
+                        role: 'Absorbe el retroceso y retorna la corredera hacia adelante para alimentar un nuevo cartucho.'
+                    },
+                    barrel: {
+                        name: '5. Cañón Estriado (Sistema Browning)',
+                        short: 'Cañón Browning',
+                        role: 'Cañón de 108mm con rampa de alimentación pulida y bloque de acerrojado superior rectangular que encastra en la ventana expulsora.'
+                    }
+                },
+                disassembleHints: {
+                    magazine: 'Paso 1: Presione el retén y extraiga el CARGADOR antes de manipular el arma.',
+                    takedown: 'Paso 2: Con recámara vacía verificada, gire 90° hacia abajo la PALANCA DE DESARME izquierda.',
+                    slide: 'Paso 3: Desplace el CONJUNTO CORREDERA hacia adelante para separarlo del armazón.',
+                    recoil: 'Paso 4: Comprima ligeramente y extraiga el RESORTE RECUPERADOR Y GUÍA de debajo del cañón.',
+                    barrel: 'Paso 5: Levante levemente y retire el CAÑÓN hacia atrás y arriba desde el interior de la corredera.'
+                },
+                cleaningSteps: [
+                    {
+                        step: 'Paso 1: Desarme Básico de Campaña',
+                        desc: 'Con cargador extraído y recámara vacía, alinee la muesca de la corredera y gire 90° hacia abajo la palanca lateral izquierda de la Bersa TPR 9mm. Deslice la corredera hacia adelante y retire resorte guía y cañón.',
+                        svgType: 'takedown_bersa'
+                    },
+                    {
+                        step: 'Paso 2: Limpieza del Ánima del Cañón',
+                        desc: 'Introduzca la baqueta con cepillo de bronce embebido en solvente siempre desde la RECÁMARA hacia la boca del cañón (nunca a la inversa para no dañar la corona). Finalice pasando paños secos hasta que salgan limpios.',
+                        svgType: 'barrel_clean'
+                    },
+                    {
+                        step: 'Paso 3: Corredera y Cubeta del Percutor',
+                        desc: 'Cepille los rieles internos de la corredera, la uña extractora y la cubeta del percutor (manteniendo la boca inclinada hacia abajo para que no ingrese suciedad al canal de la aguja).',
+                        svgType: 'slide_clean'
+                    },
+                    {
+                        step: 'Paso 4: Lubricación Puntual Reglamentaria',
+                        desc: 'Aplique una gota mínima de aceite lubricante en las guías del armazón, exterior del cañón y tetón de acerrojado Browning. Evite lubricar el interior del cargador o el canal de la aguja percutora.',
+                        svgType: 'oil_bersa'
+                    },
+                    {
+                        step: 'Paso 5: Rearme y Prueba en Seco',
+                        desc: 'Coloque cañón y resorte guía en la corredera, deslice sobre el armazón, gire la palanca 90° hacia arriba y verifique manualmente el ciclado, retén de corredera y palanca decocker.',
+                        svgType: 'reassemble'
+                    }
+                ],
+                quiz: [
+                    {
+                        q: '¿Cuál es el movimiento exacto para liberar la corredera en la Bersa TPR 9mm una vez verificada la recámara vacía?',
+                        options: [
+                            'Presionar un botón del lado derecho y girar la palanca izquierda',
+                            'Girar 90° hacia abajo la palanca de desarme ubicada en el lado izquierdo del armazón',
+                            'Tirar del guardamonte hacia abajo como en una pistola Makarov'
+                        ],
+                        correct: 1
+                    },
+                    {
+                        q: '¿En qué sentido debe pasarse la baqueta de limpieza por el cañón de la TPR 9mm?',
+                        options: [
+                            'Desde la recámara hacia la boca del cañón',
+                            'Desde la boca del cañón hacia la recámara',
+                            'En movimiento de vaivén rápido desde la boca'
+                        ],
+                        correct: 0
+                    },
+                    {
+                        q: '¿Qué sistema de acerrojado utiliza el cañón de la Bersa TPR 9mm?',
+                        options: [
+                            'Bloque oscilante inferior tipo Beretta',
+                            'Cañón fijo por inercia de masas (Blowback)',
+                            'Sistema Browning mejorado (encastre rectangular en ventana expulsora)'
+                        ],
+                        correct: 2
+                    }
+                ]
+            },
+
+            thunder9: {
+                id: 'thunder9',
+                name: 'Bersa Thunder Pro 9mm',
+                shortName: 'Thunder Pro 9',
+                origin: 'Industria Argentina (Ramos Mejía, Bs. As.)',
+                caliber: '9x19 mm Parabellum',
+                capacity: '17 + 1 cartuchos',
+                action: 'DA/SA con Decocker Ambidiestro',
+                locking: 'Browning Mejorado',
+                detail: 'Particularidad Mecánica: Antecesora directa de la TPR 9. Cuenta con seguro manual combinado con palanca de desamartillado (decocker) ambidiestro en el armazón, guardamonte redondeado clásico y riel táctico inferior.',
+                parts: {
+                    magazine: {
+                        name: '1. Cargador Bifronte (17 cartuchos)',
+                        short: 'Cargador',
+                        role: 'Cargador metálico con teja elevadora de polímero de alta visibilidad. Retirar primero.'
+                    },
+                    takedown: {
+                        name: '2. Palanca de Desarme Giratoria',
+                        short: 'Palanca de Desarme',
+                        role: 'Ubicada sobre el guardamonte del lado izquierdo; gira 90° hacia abajo liberando el conjunto superior.'
+                    },
+                    slide: {
+                        name: '3. Conjunto Corredera Thunder Pro',
+                        short: 'Corredera',
+                        role: 'Corredera de acero con segrinado trasero vertical y seguro automático de aguja percutora.'
+                    },
+                    recoil: {
+                        name: '4. Resorte Recuperador y Varilla Guía',
+                        short: 'Resorte y Guía',
+                        role: 'Conjunto helicoidal que controla el retroceso de la corredera durante el ciclo de disparo.'
+                    },
+                    barrel: {
+                        name: '5. Cañón Estriado Poligonal/Convencional',
+                        short: 'Cañón Browning',
+                        role: 'Cañón basculante con ojal inferior cerrado donde encastra el eje de la palanca de desarme.'
+                    }
+                },
+                disassembleHints: {
+                    magazine: 'Paso 1: Extraiga el CARGADOR presionando el botón retén lateral.',
+                    takedown: 'Paso 2: Con el arma despejada, gire 90° hacia abajo la PALANCA DE DESARME izquierda.',
+                    slide: 'Paso 3: Empuje la CORREDERA hacia adelante hasta separarla completamente de las guías del armazón.',
+                    recoil: 'Paso 4: Retire el RESORTE RECUPERADOR Y GUÍA alojado bajo el cañón.',
+                    barrel: 'Paso 5: Extraiga el CAÑÓN desplazándolo levemente hacia adelante y luego hacia arriba.'
+                },
+                cleaningSteps: [
+                    {
+                        step: 'Paso 1: Desarme de Campaña Thunder Pro',
+                        desc: 'Retire el cargador, compruebe recámara vacía y gire 90° hacia abajo la palanca de desarme izquierda. Deslice la corredera hacia adelante y separe resorte recuperador y cañón.',
+                        svgType: 'takedown_bersa'
+                    },
+                    {
+                        step: 'Paso 2: Limpieza del Cañón y Rampa',
+                        desc: 'Limpie el interior del ánima desde la recámara hacia la boca con baqueta y cepillo de bronce. Preste especial atención al pulido de la rampa de alimentación para evitar fallas de ciclado.',
+                        svgType: 'barrel_clean'
+                    },
+                    {
+                        step: 'Paso 3: Limpieza de Armazón y Mecanismo Decocker',
+                        desc: 'Con un cepillo de cerdas de nylon seco, remueva residuos de pólvora en las guías del armazón, el desconector y el alojamiento del cargador.',
+                        svgType: 'slide_clean'
+                    },
+                    {
+                        step: 'Paso 4: Lubricación Controlada',
+                        desc: 'Coloque una película fina de aceite en los rieles del armazón, el exterior del cañón y el resorte recuperador. El exceso de aceite atrae polvo y tierra durante el patrullaje.',
+                        svgType: 'oil_bersa'
+                    },
+                    {
+                        step: 'Paso 5: Ensamblaje y Control del Decocker',
+                        desc: 'Reensamble en orden inverso. Con el arma vacía apuntando a zona segura, accione la palanca decocker para verificar que el martillo caiga sin golpear la aguja percutora.',
+                        svgType: 'reassemble'
+                    }
+                ],
+                quiz: [
+                    {
+                        q: '¿Qué función cumple la palanca ambidiestra ubicada en el armazón de la Bersa Thunder Pro 9mm?',
+                        options: [
+                            'Es únicamente el retén de la corredera',
+                            'Actúa como seguro manual y palanca de desamartillado seguro (Decocker)',
+                            'Libera el cañón para limpieza rápida'
+                        ],
+                        correct: 1
+                    },
+                    {
+                        q: '¿Por qué es fundamental evitar el exceso de aceite lubricante en el arma de servicio?',
+                        options: [
+                            'Porque el aceite en exceso oxida el acero inoxidable',
+                            'Porque acumula polvo, pelusa y residuos de pólvora formando una pasta abrasiva',
+                            'Porque aumenta la presión en recámara'
+                        ],
+                        correct: 1
+                    },
+                    {
+                        q: 'Antes de girar la palanca de desarme en la Thunder Pro 9mm, ¿qué paso es ineludible?',
+                        options: [
+                            'Extraer el cargador y verificar visual y táctilmente la recámara vacía',
+                            'Colocar el seguro manual hacia arriba',
+                            'Lubricar el exterior de la corredera'
+                        ],
+                        correct: 0
+                    }
+                ]
+            },
+
+            pt917: {
+                id: 'pt917',
+                name: 'Taurus PT917 9mm',
+                shortName: 'Taurus PT917',
+                origin: 'Brasil (Forjas Taurus S.A.)',
+                caliber: '9x19 mm Parabellum',
+                capacity: '17 + 1 / 19 + 1 cartuchos',
+                action: 'DA/SA Corredera Abierta',
+                locking: 'Bloque Oscilante (Tipo Beretta 92)',
+                detail: 'Particularidad Mecánica: Diseño de corredera abierta superior con cañón expuesto. Para desarmarla se debe PRESIONAR el botón de desarme del lado derecho mientras se GIRA 90° hacia abajo la palanca del lado izquierdo. Utiliza bloque oscilante inferior.',
+                parts: {
+                    magazine: {
+                        name: '1. Cargador Taurus 9mm (17/19 cartuchos)',
+                        short: 'Cargador',
+                        role: 'Cargador metálico de alta capacidad. Debe extraerse antes de accionar el desarme.'
+                    },
+                    takedown: {
+                        name: '2. Botón Derecho + Palanca de Desarme Izquierda',
+                        short: 'Botón + Palanca Desarme',
+                        role: 'Sistema combinado: se presiona el botón retenedor del lado derecho para permitir girar 90° la palanca izquierda.'
+                    },
+                    slide: {
+                        name: '3. Conjunto Corredera Abierta PT917',
+                        short: 'Corredera Abierta',
+                        role: 'Diseño abierto superior que evita interrupciones por eyección de vainas.'
+                    },
+                    recoil: {
+                        name: '4. Resorte Recuperador y Guía',
+                        short: 'Resorte y Guía',
+                        role: 'Ubicado bajo el cañón; se retira comprimiéndolo suavemente hacia adelante.'
+                    },
+                    barrel: {
+                        name: '5. Cañón con Bloque Oscilante Inferior',
+                        short: 'Cañón + Bloque Oscilante',
+                        role: 'Cañón de desplazamiento axial lineal con bloque de acerrojado oscilante articulado en su parte inferior.'
+                    }
+                },
+                disassembleHints: {
+                    magazine: 'Paso 1: Presione el retén y retire completamente el CARGADOR.',
+                    takedown: 'Paso 2: Presione el BOTÓN DERECHO y simultáneamente gire 90° hacia abajo la PALANCA IZQUIERDA.',
+                    slide: 'Paso 3: Deslice el conjunto CORREDERA Y CAÑÓN hacia adelante fuera del armazón.',
+                    recoil: 'Paso 4: Retire el RESORTE RECUPERADOR Y GUÍA ubicado debajo del cañón.',
+                    barrel: 'Paso 5: Presione el pistón del bloque oscilante y levante el CAÑÓN fuera de la corredera abierta.'
+                },
+                cleaningSteps: [
+                    {
+                        step: 'Paso 1: Desarme Específico Taurus PT917',
+                        desc: 'Con el arma despejada, presione con el índice el BOTÓN DE DESARME del lado derecho del armazón y con el pulgar gire 90° hacia abajo la PALANCA IZQUIERDA. Deslice corredera y cañón hacia adelante.',
+                        svgType: 'takedown_taurus'
+                    },
+                    {
+                        step: 'Paso 2: Extracción y Limpieza del Bloque Oscilante',
+                        desc: 'Al retirar el cañón, limpie cuidadosamente las aletas laterales del BLOQUE OSCILANTE inferior y su perno articulado, ya que allí se acumula carbonilla que puede trabar el acerrojado.',
+                        svgType: 'barrel_clean'
+                    },
+                    {
+                        step: 'Paso 3: Limpieza de Corredera Abierta y Rieles',
+                        desc: 'Limpie los rebajes internos de la corredera donde encastran las aletas del bloque oscilante, así como las guías del armazón de aleación ligera.',
+                        svgType: 'slide_clean'
+                    },
+                    {
+                        step: 'Paso 4: Lubricación del Bloque Oscilante y Guías',
+                        desc: 'Lubrique específicamente las superficies de fricción del bloque oscilante en el cañón, el exterior del cañón y los rieles del armazón.',
+                        svgType: 'oil_taurus'
+                    },
+                    {
+                        step: 'Paso 5: Rearme y Verificación de Acerrojado',
+                        desc: 'Introduzca el cañón y el resorte guía en la corredera, deslícela sobre el armazón hasta pasar el eje y gire la palanca izquierda hacia arriba hasta que el botón derecho trabe con un clic.',
+                        svgType: 'reassemble'
+                    }
+                ],
+                quiz: [
+                    {
+                        q: '¿Qué maniobra particular exige la Taurus PT917 para poder girar su palanca de desarme?',
+                        options: [
+                            'Presionar simultáneamente el botón retenedor ubicado en el lado derecho del armazón',
+                            'Mantener presionado el disparador mientras se tira de la corredera',
+                            'Extraer previamente la aguja percutora'
+                        ],
+                        correct: 0
+                    },
+                    {
+                        q: '¿Qué mecanismo de acerrojado distingue al cañón de la Taurus PT917 respecto de las pistolas Bersa?',
+                        options: [
+                            'Cañón rotativo',
+                            'Bloque oscilante inferior (tipo Beretta 92) con desplazamiento axial del cañón',
+                            'Sistema de rodillos retardados'
+                        ],
+                        correct: 1
+                    },
+                    {
+                        q: '¿Cuál es una ventaja funcional del diseño de corredera abierta de la Taurus PT917?',
+                        options: [
+                            'Elimina la necesidad de limpiar el cañón',
+                            'Minimiza la probabilidad de interrupciones en la expulsión de vainas servidas',
+                            'Permite disparar sin cargador colocado'
+                        ],
+                        correct: 1
+                    }
+                ]
+            }
+        };
+
+        /**
+         * ESTADO GLOBAL DE LA APLICACIÓN
+         */
+        let currentWeaponId = 'tpr9';
+        let currentScreen = 1;
+        let simMode = 'disassemble'; // 'disassemble' | 'assemble'
+        const STRICT_DISASSEMBLE_ORDER = ['magazine', 'takedown', 'slide', 'recoil', 'barrel'];
+        const STRICT_ASSEMBLE_ORDER = ['barrel', 'recoil', 'slide', 'takedown', 'magazine'];
+        
+        let extractedParts = []; // Piezas actualmente en la Mesa de Armero
+        let errorCount = 0;
+        let draggedPartId = null;
+
+        // =========================================================================
+        // SISTEMA DE AUDIO SINTÉTICO (Tone.js) - Sin URLs externas
+        // =========================================================================
+        let audioInitialized = false;
+        let clickSynth, successSynth, errorSynth;
+
+        function initAudio() {
+            if (audioInitialized || typeof Tone === 'undefined') return;
+            try {
+                Tone.start();
+                clickSynth = new Tone.MembraneSynth({
+                    pitchDecay: 0.02,
+                    octaves: 3,
+                    envelope: { attack: 0.001, decay: 0.08, sustain: 0 }
+                }).toDestination();
+                clickSynth.volume.value = -10;
+
+                successSynth = new Tone.PolySynth(Tone.Synth).toDestination();
+                successSynth.volume.value = -12;
+
+                errorSynth = new Tone.SawtoothSynth({
+                    envelope: { attack: 0.01, decay: 0.25, sustain: 0 }
+                }).toDestination();
+                errorSynth.volume.value = -10;
+
+                audioInitialized = true;
+            } catch (e) {
+                console.warn('Audio no disponible:', e);
+            }
+        }
+
+        function playSound(type) {
+            initAudio();
+            if (!audioInitialized) return;
+            try {
+                if (type === 'click') {
+                    clickSynth.triggerAttackRelease('C3', '32n');
+                } else if (type === 'step') {
+                    successSynth.triggerAttackRelease(['E5', 'G5'], '16n');
+                } else if (type === 'complete') {
+                    successSynth.triggerAttackRelease(['C5', 'E5', 'G5', 'C6'], '8n');
+                } else if (type === 'error') {
+                    errorSynth.triggerAttackRelease('F2', '8n');
+                }
+            } catch (e) {}
+        }
+
+        // =========================================================================
+        // SISTEMA DE NOTIFICACIONES TÁCTICAS (Reemplaza alert())
+        // =========================================================================
+        let toastTimeout;
+        function showToast(type, title, message) {
+            const toast = document.getElementById('tactical-toast');
+            const box = document.getElementById('tactical-toast-box');
+            const icon = document.getElementById('tactical-toast-icon');
+            const titleEl = document.getElementById('tactical-toast-title');
+            const msgEl = document.getElementById('tactical-toast-msg');
+
+            clearTimeout(toastTimeout);
+
+            if (type === 'error') {
+                box.className = 'rounded-xl p-4 shadow-2xl border-2 flex items-start gap-3 backdrop-blur-md bg-red-950/95 border-red-500 text-red-100';
+                icon.innerHTML = `<svg class="w-6 h-6 text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z"/></svg>`;
+            } else if (type === 'success') {
+                box.className = 'rounded-xl p-4 shadow-2xl border-2 flex items-start gap-3 backdrop-blur-md bg-emerald-950/95 border-emerald-500 text-emerald-100';
+                icon.innerHTML = `<svg class="w-6 h-6 text-emerald-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`;
+            } else {
+                box.className = 'rounded-xl p-4 shadow-2xl border-2 flex items-start gap-3 backdrop-blur-md bg-slate-900/95 border-sky-400 text-sky-100';
+                icon.innerHTML = `<svg class="w-6 h-6 text-sky-400" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2.5" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>`;
+            }
+
+            titleEl.textContent = title;
+            msgEl.textContent = message;
+
+            toast.classList.remove('opacity-0', '-translate-y-4', 'pointer-events-none');
+            toast.classList.add('opacity-100', 'translate-y-0');
+
+            toastTimeout = setTimeout(() => {
+                toast.classList.add('opacity-0', '-translate-y-4', 'pointer-events-none');
+                toast.classList.remove('opacity-100', 'translate-y-0');
+            }, 4200);
+        }
+
+        // =========================================================================
+        // NAVEGACIÓN ENTRE LAS 3 PANTALLAS
+        // =========================================================================
+        function navigateTo(screenNum) {
+            playSound('click');
+            currentScreen = screenNum;
+
+            // Ocultar todas las pantallas y mostrar la activa
+            document.querySelectorAll('.screen-section').forEach(sec => sec.classList.remove('active'));
+            document.getElementById(`screen-${screenNum}`).classList.add('active');
+
+            // Actualizar estilos de botones de navegación
+            [1, 2, 3].forEach(num => {
+                const btn = document.getElementById(`nav-btn-${num}`);
+                const circle = btn.querySelector('span');
+                if (num === screenNum) {
+                    btn.className = 'flex-1 md:flex-none px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all flex items-center justify-center gap-1.5 bg-sky-600 text-white shadow';
+                    circle.className = 'w-5 h-5 rounded-full bg-white/20 text-[11px] flex items-center justify-center font-mono';
+                } else {
+                    btn.className = 'flex-1 md:flex-none px-3 py-2 rounded-lg text-xs sm:text-sm font-semibold transition-all flex items-center justify-center gap-1.5 text-slate-300 hover:text-white hover:bg-slate-800';
+                    circle.className = 'w-5 h-5 rounded-full bg-slate-700 text-[11px] flex items-center justify-center font-mono';
+                }
+            });
+
+            if (screenNum === 2) {
+                initSimulator();
+            } else if (screenNum === 3) {
+                renderCleaningGuide();
+            }
+
+            window.scrollTo({ top: 0, behavior: 'smooth' });
+        }
+
+        // =========================================================================
+        // PANTALLA 1: SELECCIÓN DE ARMAMENTO Y FICHA TÉCNICA
+        // =========================================================================
+        function selectWeapon(weaponId) {
+            playSound('click');
+            currentWeaponId = weaponId;
+            const w = WEAPONS_DATA[weaponId];
+
+            // Actualizar tarjetas visuales
+            ['tpr9', 'thunder9', 'pt917'].forEach(id => {
+                const card = document.getElementById(`card-${id}`);
+                const badge = document.getElementById(`badge-${id}`);
+                if (id === weaponId) {
+                    card.classList.remove('border-slate-700/80');
+                    card.classList.add('border-sky-500', 'bg-slate-800/80');
+                    badge.textContent = '● SELECCIONADA';
+                    badge.className = 'text-xs font-bold text-amber-400 flex items-center gap-1';
+                } else {
+                    card.classList.remove('border-sky-500', 'bg-slate-800/80');
+                    card.classList.add('border-slate-700/80');
+                    badge.textContent = 'Seleccionar';
+                    badge.className = 'text-xs font-bold text-slate-500';
+                }
+            });
+
+            // Actualizar ficha técnica
+            document.getElementById('spec-title').textContent = w.name;
+            document.getElementById('spec-caliber').textContent = w.caliber;
+            document.getElementById('spec-capacity').textContent = w.capacity;
+            document.getElementById('spec-action').textContent = w.action;
+            document.getElementById('spec-locking').textContent = w.locking;
+            document.getElementById('spec-detail').innerHTML = `<strong>Particularidad Mecánica:</strong> ${w.detail.replace('Particularidad Mecánica: ', '')}`;
+            document.getElementById('mobile-weapon-badge').textContent = w.shortName;
+        }
+
+        // =========================================================================
+        // PANTALLA 2: SIMULADOR INTERACTIVO DE DESARME Y ARME
+        // =========================================================================
+        function initSimulator() {
+            const w = WEAPONS_DATA[currentWeaponId];
+            document.getElementById('sim-weapon-name').textContent = w.name;
+            setSimulatorMode(simMode, false);
+        }
+
+        function setSimulatorMode(mode, playAudio = true) {
+            if (playAudio) playSound('click');
+            simMode = mode;
+            errorCount = 0;
+            updateErrorDisplay();
+
+            const btnDis = document.getElementById('mode-disassemble-btn');
+            const btnAsm = document.getElementById('mode-assemble-btn');
+
+            if (mode === 'disassemble') {
+                btnDis.className = 'flex-1 sm:flex-none px-3 py-2 rounded-lg text-xs font-bold bg-sky-600 text-white transition-all';
+                btnAsm.className = 'flex-1 sm:flex-none px-3 py-2 rounded-lg text-xs font-bold text-slate-400 hover:text-white transition-all';
+                extractedParts = []; // Todas las piezas en el arma
+                addLog('Modo DESARME iniciado. Retire primero el cargador.', 'info');
+            } else {
+                btnAsm.className = 'flex-1 sm:flex-none px-3 py-2 rounded-lg text-xs font-bold bg-emerald-600 text-white transition-all';
+                btnDis.className = 'flex-1 sm:flex-none px-3 py-2 rounded-lg text-xs font-bold text-slate-400 hover:text-white transition-all';
+                extractedParts = [...STRICT_DISASSEMBLE_ORDER]; // Todas las piezas flotando en la mesa
+                addLog('Modo ARME iniciado. Coloque primero el cañón en la corredera.', 'info');
+            }
+
+            renderSimulatorState();
+        }
+
+        function resetSimulator() {
+            playSound('click');
+            setSimulatorMode(simMode, false);
+            showToast('info', 'Simulación Reiniciada', 'Se restablecieron las piezas y el contador de faltas de seguridad.');
+        }
+
+        function getNextExpectedPart() {
+            if (simMode === 'disassemble') {
+                return STRICT_DISASSEMBLE_ORDER.find(p => !extractedParts.includes(p)) || null;
+            } else {
+                return STRICT_ASSEMBLE_ORDER.find(p => extractedParts.includes(p)) || null;
+            }
+        }
+
+        /**
+         * Maneja la interacción (clic/toque o soltar en bandeja) sobre una pieza
+         */
+        function handlePartAction(partId) {
+            const w = WEAPONS_DATA[currentWeaponId];
+            const nextExpected = getNextExpectedPart();
+
+            if (!nextExpected) return;
+
+            if (simMode === 'disassemble') {
+                // Si la pieza ya fue extraída, solo inspeccionarla
+                if (extractedParts.includes(partId)) {
+                    inspectPart(partId);
+                    return;
+                }
+
+                // VALIDACIÓN ESTRICTA DE SEGURIDAD EN DESARME
+                if (partId !== nextExpected) {
+                    errorCount++;
+                    updateErrorDisplay();
+                    playSound('error');
+                    triggerShake();
+
+                    let errorMsg = '';
+                    if (!extractedParts.includes('magazine')) {
+                        errorMsg = '¡ERROR DE SEGURIDAD! Debe retirar el cargador y verificar recámara antes de manipular el desarme.';
+                    } else if (nextExpected === 'takedown') {
+                        errorMsg = currentWeaponId === 'pt917'
+                            ? 'Secuencia incorrecta: Debe presionar el botón derecho y girar 90° la palanca de desarme izquierda antes de desplazar la corredera.'
+                            : 'Secuencia incorrecta: Debe girar 90° hacia abajo la palanca de desarme izquierda antes de retirar la corredera.';
+                    } else if (nextExpected === 'slide') {
+                        errorMsg = 'Secuencia incorrecta: Primero debe desplazar y retirar el conjunto corredera del armazón.';
+                    } else if (nextExpected === 'recoil') {
+                        errorMsg = 'Secuencia incorrecta: Debe extraer el resorte recuperador y su guía antes de poder retirar el cañón.';
+                    }
+
+                    showToast('error', 'Falta de Protocolo Técnico', errorMsg);
+                    addLog(`[ERROR] Intento indebido sobre: ${w.parts[partId].short}`, 'error');
+                    return;
+                }
+
+                // Acción válida en desarme
+                extractedParts.push(partId);
+                inspectPart(partId);
+                
+                if (extractedParts.length === 5) {
+                    playSound('complete');
+                    showToast('success', '¡Desarme de Campaña Completado!', `Has desarmado correctamente la ${w.name} respetando todas las normas de seguridad.`);
+                    addLog(`[OK] Desarme finalizado con ${errorCount} errores.`, 'success');
+                } else {
+                    playSound('step');
+                    addLog(`[OK] Extraído: ${w.parts[partId].short}`, 'success');
+                }
+
+            } else {
+                // MODO ARME / ENSAMBLAJE
+                if (!extractedParts.includes(partId)) {
+                    inspectPart(partId);
+                    return;
+                }
+
+                if (partId !== nextExpected) {
+                    errorCount++;
+                    updateErrorDisplay();
+                    playSound('error');
+                    triggerShake();
+
+                    const expectedName = w.parts[nextExpected].short;
+                    const msg = `Orden de ensamblaje incorrecto. Antes de colocar "${w.parts[partId].short}", debe instalar: ${expectedName.toUpperCase()}.`;
+                    showToast('error', 'Error de Ensamblaje', msg);
+                    addLog(`[ERROR] Orden de arme inválido (${w.parts[partId].short})`, 'error');
+                    return;
+                }
+
+                // Acción válida en arme
+                extractedParts = extractedParts.filter(p => p !== partId);
+                inspectPart(partId);
+
+                if (extractedParts.length === 0) {
+                    playSound('complete');
+                    showToast('success', '¡Armado Reglamentario Completado!', `La ${w.name} ha sido ensamblada correctamente en el orden técnico exacto.`);
+                    addLog(`[OK] Ensamblaje completado con ${errorCount} errores.`, 'success');
+                } else {
+                    playSound('step');
+                    addLog(`[OK] Instalado: ${w.parts[partId].short}`, 'success');
+                }
+            }
+
+            renderSimulatorState();
+        }
+
+        function inspectPart(partId) {
+            const w = WEAPONS_DATA[currentWeaponId];
+            const part = w.parts[partId];
+            if (!part) return;
+            document.getElementById('inspector-part-name').textContent = part.name;
+            document.getElementById('inspector-part-desc').textContent = part.role;
+        }
+
+        function triggerShake() {
+            const box = document.getElementById('weapon-stage-box');
+            box.classList.remove('shake-alert');
+            void box.offsetWidth; // reflow
+            box.classList.add('shake-alert');
+        }
+
+        function updateErrorDisplay() {
+            const el = document.getElementById('sim-error-count');
+            el.textContent = `${errorCount} ${errorCount === 1 ? 'Error' : 'Errores'}`;
+            el.className = errorCount === 0
+                ? 'text-xl font-extrabold font-mono text-emerald-400'
+                : 'text-xl font-extrabold font-mono text-red-400';
+        }
+
+        function addLog(text, type) {
+            const logBox = document.getElementById('sim-log-box');
+            const line = document.createElement('div');
+            if (type === 'error') line.className = 'text-red-400';
+            else if (type === 'success') line.className = 'text-emerald-400';
+            else line.className = 'text-sky-400';
+            line.textContent = text;
+            logBox.prepend(line);
+        }
+
+        // Soporte Drag & Drop HTML5
+        function handleDragStart(e, partId) {
+            draggedPartId = partId;
+            e.dataTransfer.setData('text/plain', partId);
+        }
+
+        function handleDragOver(e) {
+            e.preventDefault();
+            document.getElementById('armorer-bench').classList.add('drop-zone-active');
+        }
+
+        function handleDragLeave(e) {
+            document.getElementById('armorer-bench').classList.remove('drop-zone-active');
+        }
+
+        function handleDropOnBench(e) {
+            e.preventDefault();
+            document.getElementById('armorer-bench').classList.remove('drop-zone-active');
+            const partId = e.dataTransfer.getData('text/plain') || draggedPartId;
+            if (partId && simMode === 'disassemble') {
+                handlePartAction(partId);
+            }
+        }
+
+        function handleDropOnWeapon(e) {
+            e.preventDefault();
+            const partId = e.dataTransfer.getData('text/plain') || draggedPartId;
+            if (partId && simMode === 'assemble') {
+                handlePartAction(partId);
+            }
+        }
+
+        /**
+         * RENDERIZA EL SVG MODULAR DEL ARMA Y LAS RANURAS DE LA MESA DE ARMERO
+         */
+        function renderSimulatorState() {
+            const w = WEAPONS_DATA[currentWeaponId];
+            const nextExpected = getNextExpectedPart();
+
+            // 1. Actualizar barra de progreso e instrucción superior
+            const completedCount = simMode === 'disassemble'
+                ? extractedParts.length
+                : (5 - extractedParts.length);
+            const pct = (completedCount / 5) * 100;
+
+            document.getElementById('sim-progress-text').textContent = `${completedCount} / 5 PIEZAS`;
+            document.getElementById('sim-progress-bar').style.width = `${pct}%`;
+
+            const banner = document.getElementById('sim-instruction-banner');
+            if (!nextExpected) {
+                banner.textContent = simMode === 'disassemble'
+                    ? '✓ Procedimiento finalizado: Todas las piezas se encuentran ordenadas en la Mesa de Armero.'
+                    : '✓ Arma ensamblada y lista para verificación funcional en seco.';
+                banner.className = 'text-xs sm:text-sm text-emerald-400 font-bold mt-1';
+            } else {
+                banner.className = 'text-xs sm:text-sm text-amber-300 font-medium mt-1';
+                if (simMode === 'disassemble') {
+                    banner.textContent = w.disassembleHints[nextExpected];
+                } else {
+                    const stepNum = 5 - extractedParts.length + 1;
+                    banner.textContent = `Paso ${stepNum} de 5 (Arme): Toque o arrastre "${w.parts[nextExpected].short.toUpperCase()}" desde la Mesa de Armero hacia el arma.`;
+                }
+            }
+
+            // 2. Renderizar SVG Modular en el Lienzo Izquierdo
+            renderModularWeaponSVG(w, nextExpected);
+
+            // 3. Renderizar las 5 Ranuras en la Mesa de Armero
+            const slotsContainer = document.getElementById('bench-slots-container');
+            slotsContainer.innerHTML = '';
+
+            STRICT_DISASSEMBLE_ORDER.forEach((partId, idx) => {
+                const isOnBench = extractedParts.includes(partId);
+                const partInfo = w.parts[partId];
+                const isNextToAssemble = (simMode === 'assemble' && nextExpected === partId);
+
+                const slotDiv = document.createElement('div');
+                if (isOnBench) {
+                    slotDiv.setAttribute('draggable', 'true');
+                    slotDiv.ondragstart = (e) => handleDragStart(e, partId);
+                    slotDiv.onclick = () => handlePartAction(partId);
+                    slotDiv.onmouseenter = () => inspectPart(partId);
+
+                    slotDiv.className = `floating-part rounded-xl p-3 border-2 flex items-center justify-between gap-3 shadow-lg ${
+                        isNextToAssemble
+                            ? 'bg-emerald-950/70 border-amber-400 ring-2 ring-amber-400/40'
+                            : 'bg-slate-800/95 border-sky-500/60 hover:border-sky-400'
+                    }`;
+
+                    slotDiv.innerHTML = `
+                        <div class="flex items-center gap-3">
+                            <div class="w-12 h-10 rounded-lg bg-slate-950 border border-slate-700 flex items-center justify-center p-1 shrink-0">
+                                ${getMiniPartSVG(currentWeaponId, partId)}
+                            </div>
+                            <div>
+                                <span class="text-xs font-bold text-white block">${partInfo.name}</span>
+                                <span class="text-[11px] text-sky-300 font-mono">
+                                    ${simMode === 'assemble' ? 'Toque o arrastre para ensamblar ↑' : 'Pieza extraída • Toque para info'}
+                                </span>
+                            </div>
+                        </div>
+                        <span class="px-2 py-0.5 rounded bg-sky-500/20 text-sky-300 text-[10px] font-mono font-bold">OK</span>
+                    `;
+                } else {
+                    slotDiv.className = 'rounded-xl p-3 border border-dashed border-slate-800 bg-slate-950/50 flex items-center justify-between opacity-60';
+                    slotDiv.innerHTML = `
+                        <div class="flex items-center gap-3">
+                            <div class="w-8 h-8 rounded-lg bg-slate-900 border border-slate-800 flex items-center justify-center text-xs font-mono text-slate-500">
+                                0${idx + 1}
+                            </div>
+                            <span class="text-xs text-slate-500 font-medium">Ranura vacía: ${partInfo.short}</span>
+                        </div>
+                        <span class="text-[10px] font-mono text-slate-600">EN ARMA</span>
+                    `;
+                }
+                slotsContainer.appendChild(slotDiv);
+            });
+        }
+
+        /**
+         * Genera el SVG interactivo principal del arma con sus 5 piezas independientes + Armazón fijo
+         */
+        function renderModularWeaponSVG(weapon, nextExpected) {
+            const container = document.getElementById('svg-weapon-container');
+            const isPT917 = weapon.id === 'pt917';
+            const isTPR = weapon.id === 'tpr9';
+
+            const inWeapon = (partId) => !extractedParts.includes(partId);
+            const hlClass = (partId) => (simMode === 'disassemble' && nextExpected === partId) ? 'part-highlight-next' : '';
+
+            // Posiciones expandidas ligeramente para facilitar el toque en pantallas táctiles
+            container.innerHTML = `
+                <svg viewBox="0 0 460 250" 
+                     ondragover="event.preventDefault()" 
+                     ondrop="handleDropOnWeapon(event)"
+                     class="w-full max-w-[520px] h-auto drop-shadow-2xl">
+                    <defs>
+                        <linearGradient id="steelGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stop-color="#64748b"/>
+                            <stop offset="50%" stop-color="#334155"/>
+                            <stop offset="100%" stop-color="#1e293b"/>
+                        </linearGradient>
+                        <linearGradient id="barrelGrad" x1="0" y1="0" x2="0" y2="1">
+                            <stop offset="0%" stop-color="#cbd5e1"/>
+                            <stop offset="50%" stop-color="#94a3b8"/>
+                            <stop offset="100%" stop-color="#475569"/>
+                        </linearGradient>
+                        <linearGradient id="frameGrad" x1="0" y1="0" x2="1" y2="1">
+                            <stop offset="0%" stop-color="#1e293b"/>
+                            <stop offset="100%" stop-color="#0f172a"/>
+                        </linearGradient>
+                    </defs>
+
+                    <!-- Etiqueta de fondo -->
+                    <text x="15" y="22" fill="#475569" font-family="JetBrains Mono" font-size="10" font-weight="bold">
+                        MODELO: ${weapon.name.toUpperCase()} • ESCALA TÁCTICA
+                    </text>
+
+                    <!-- 0. ARMAZÓN / FRAME (BASE FIJA SIEMPRE PRESENTE) -->
+                    <g id="svg-frame" opacity="0.95">
+                        <!-- Cuerpo principal del armazón y empuñadura -->
+                        <path d="M85 110 H365 V125 H285 L270 158 H205 L178 222 H102 L126 142 L85 125 Z" 
+                              fill="url(#frameGrad)" stroke="#475569" stroke-width="2"/>
+                        <!-- Riel Picatinny inferior -->
+                        <path d="M295 125 V130 H305 V125 M315 125 V130 H325 V125 M335 125 V130 H345 V125" 
+                              stroke="#64748b" stroke-width="2"/>
+                        <!-- Guardamonte -->
+                        <path d="M208 125 H276 ${isTPR ? 'L266 158 H200' : 'C276 148 260 158 200 158'} Z" 
+                              fill="none" stroke="#64748b" stroke-width="3.5"/>
+                        <!-- Cola de disparador (Gatillo) -->
+                        <path d="M235 126 Q228 140 236 148" fill="none" stroke="#94a3b8" stroke-width="3" stroke-linecap="round"/>
+                        <!-- Cacha texturizada -->
+                        <path d="M126 148 L175 148 L158 208 L112 208 Z" fill="#090d16" stroke="#334155" stroke-width="1.2"/>
+                        <text x="122" y="182" fill="#334155" font-family="Inter" font-size="8" font-weight="bold" transform="rotate(-12 122 182)">
+                            ${isPT917 ? 'TAURUS' : 'BERSA'}
+                        </text>
+                        <!-- Martillo externo -->
+                        <path d="M86 108 Q74 96 82 88 L96 105 Z" fill="#475569" stroke="#94a3b8" stroke-width="1.5"/>
+                    </g>
+
+                    <!-- 5. CAÑÓN (BARREL) - Se dibuja antes de la corredera para verse en despiece -->
+                    ${inWeapon('barrel') ? `
+                    <g id="part-barrel" 
+                       class="svg-part-interactive ${hlClass('barrel')}"
+                       onclick="handlePartAction('barrel')"
+                       onmouseenter="inspectPart('barrel')">
+                        <!-- Tubo del cañón -->
+                        <rect x="195" y="${inWeapon('slide') ? '62' : '58'}" width="175" height="15" rx="3" 
+                              fill="url(#barrelGrad)" stroke="#f8fafc" stroke-width="1.2"/>
+                        ${isPT917 ? `
+                            <!-- Bloque Oscilante Inferior exclusivo Taurus PT917 -->
+                            <path d="M205 77 H242 L236 88 H210 Z" fill="#eab308" stroke="#fef08a" stroke-width="1.2"/>
+                            <text x="200" y="98" fill="#eab308" font-family="JetBrains Mono" font-size="8">BLOQUE OSCILANTE</text>
+                        ` : `
+                            <!-- Recámara rectangular sistema Browning Bersa -->
+                            <rect x="195" y="${inWeapon('slide') ? '59' : '55'}" width="46" height="20" rx="2" 
+                                  fill="#cbd5e1" stroke="#38bdf8" stroke-width="1.5"/>
+                        `}
+                    </g>` : ''}
+
+                    <!-- 4. RESORTE RECUPERADOR Y GUÍA -->
+                    ${inWeapon('recoil') ? `
+                    <g id="part-recoil" 
+                       class="svg-part-interactive ${hlClass('recoil')}"
+                       onclick="handlePartAction('recoil')"
+                       onmouseenter="inspectPart('recoil')">
+                        <!-- Varilla guía -->
+                        <rect x="242" y="${inWeapon('slide') ? '85' : '86'}" width="122" height="5" rx="2" fill="#94a3b8"/>
+                        <!-- Espiras del resorte helicoidal -->
+                        <path d="M248 82 V93 M256 82 V93 M264 82 V93 M272 82 V93 M280 82 V93 M288 82 V93 M296 82 V93 M304 82 V93 M312 82 V93 M320 82 V93 M328 82 V93 M336 82 V93 M344 82 V93 M352 82 V93" 
+                              stroke="#38bdf8" stroke-width="2.2" stroke-linecap="round"/>
+                    </g>` : ''}
+
+                    <!-- 3. CONJUNTO CORREDERA (SLIDE) -->
+                    ${inWeapon('slide') ? `
+                    <g id="part-slide" 
+                       class="svg-part-interactive ${hlClass('slide')}"
+                       onclick="handlePartAction('slide')"
+                       onmouseenter="inspectPart('slide')">
+                        ${isPT917 ? `
+                            <!-- Corredera abierta superior Taurus PT917 -->
+                            <path d="M84 56 H205 V74 H368 V106 H86 L82 92 Z" 
+                                  fill="url(#steelGrad)" stroke="#cbd5e1" stroke-width="1.8" fill-opacity="0.92"/>
+                        ` : `
+                            <!-- Corredera cerrada Bersa TPR / Thunder Pro -->
+                            <path d="M84 54 H364 L374 66 V106 H86 L82 92 Z" 
+                                  fill="url(#steelGrad)" stroke="#cbd5e1" stroke-width="1.8" fill-opacity="0.92"/>
+                            <!-- Ventana expulsora -->
+                            <rect x="202" y="57" width="42" height="16" rx="2" fill="#0f172a" stroke="#64748b" stroke-width="1"/>
+                        `}
+                        <!-- Segrinado trasero -->
+                        <path d="M104 64 V96 M112 64 V96 M120 64 V96 M128 64 V96 M136 64 V96" stroke="#94a3b8" stroke-width="2"/>
+                        <!-- Alza y Guión de 3 puntos -->
+                        <rect x="92" y="48" width="12" height="6" rx="1" fill="#1e293b" stroke="#cbd5e1" stroke-width="1"/>
+                        <circle cx="98" cy="51" r="1.5" fill="#38bdf8"/>
+                        <rect x="352" y="48" width="10" height="6" rx="1" fill="#1e293b" stroke="#cbd5e1" stroke-width="1"/>
+                        <circle cx="357" cy="51" r="1.5" fill="#38bdf8"/>
+                    </g>` : ''}
+
+                    <!-- 2. PALANCA / SEGURO DE DESARME -->
+                    <g id="part-takedown" 
+                       class="svg-part-interactive ${hlClass('takedown')}"
+                       onclick="handlePartAction('takedown')"
+                       onmouseenter="inspectPart('takedown')">
+                        ${inWeapon('takedown') ? `
+                            <!-- Palanca en posición horizontal (bloqueada) -->
+                            <circle cx="252" cy="115" r="8" fill="#eab308" stroke="#fef08a" stroke-width="1.5"/>
+                            <rect x="230" y="112" width="22" height="6" rx="2" fill="#eab308" stroke="#fef08a" stroke-width="1"/>
+                            ${isPT917 ? `<circle cx="252" cy="115" r="3" fill="#ef4444"/>` : ''}
+                        ` : `
+                            <!-- Palanca girada 90° hacia abajo / extraída -->
+                            <circle cx="252" cy="115" r="8" fill="#334155" stroke="#64748b" stroke-width="1.5" stroke-dasharray="2 2"/>
+                            <rect x="249" y="115" width="6" height="22" rx="2" fill="#64748b" opacity="0.6"/>
+                        `}
+                    </g>
+
+                    <!-- 1. CARGADOR (MAGAZINE) -->
+                    ${inWeapon('magazine') ? `
+                    <g id="part-magazine" 
+                       class="svg-part-interactive ${hlClass('magazine')}"
+                       onclick="handlePartAction('magazine')"
+                       onmouseenter="inspectPart('magazine')">
+                        <!-- Cuerpo del cargador asomando en la base -->
+                        <path d="M104 222 H176 L174 232 H101 Z" fill="#1e293b" stroke="#38bdf8" stroke-width="1.8"/>
+                        <!-- Base / Bumper táctico -->
+                        <path d="M97 232 H178 L180 241 H95 Z" fill="#0f172a" stroke="#eab308" stroke-width="1.8"/>
+                        <text x="115" y="239" fill="#eab308" font-family="JetBrains Mono" font-size="7" font-weight="bold">9x19mm</text>
+                    </g>` : ''}
+                </svg>
+            `;
+        }
+
+        /**
+         * Mini iconos SVG para las tarjetas flotantes de la Mesa de Armero
+         */
+        function getMiniPartSVG(weaponId, partId) {
+            if (partId === 'magazine') {
+                return `<svg viewBox="0 0 40 30" class="w-8 h-6"><path d="M14 4 H28 L24 24 H10 Z" fill="#334155" stroke="#38bdf8" stroke-width="1.5"/><rect x="8" y="24" width="18" height="4" fill="#eab308"/></svg>`;
+            }
+            if (partId === 'takedown') {
+                return `<svg viewBox="0 0 40 30" class="w-8 h-6"><circle cx="24" cy="15" r="6" fill="#eab308"/><rect x="8" y="12.5" width="16" height="5" rx="2" fill="#eab308"/></svg>`;
+            }
+            if (partId === 'slide') {
+                return `<svg viewBox="0 0 40 30" class="w-8 h-6"><rect x="4" y="9" width="32" height="12" rx="2" fill="#475569" stroke="#cbd5e1" stroke-width="1.5"/></svg>`;
+            }
+            if (partId === 'recoil') {
+                return `<svg viewBox="0 0 40 30" class="w-8 h-6"><line x1="4" y1="15" x2="36" y2="15" stroke="#94a3b8" stroke-width="2"/><path d="M8 10 V20 M14 10 V20 M20 10 V20 M26 10 V20 M32 10 V20" stroke="#38bdf8" stroke-width="2"/></svg>`;
+            }
+            return `<svg viewBox="0 0 40 30" class="w-8 h-6"><rect x="4" y="11" width="32" height="8" rx="2" fill="#94a3b8" stroke="#f8fafc" stroke-width="1.2"/>${weaponId === 'pt917' ? '<rect x="8" y="19" width="10" height="4" fill="#eab308"/>' : ''}</svg>`;
+        }
+
+        // =========================================================================
+        // PANTALLA 3: CHECKLIST OBLIGATORIO, GUÍA DE LIMPIEZA Y MICRO-EVALUACIÓN
+        // =========================================================================
+        function updateSafetyChecklist() {
+            const checkboxes = document.querySelectorAll('.safety-chk');
+            const checkedCount = Array.from(checkboxes).filter(cb => cb.checked).length;
+            const badge = document.getElementById('checklist-status-badge');
+            const lockedOverlay = document.getElementById('cleaning-guide-locked-overlay');
+            const unlockedContent = document.getElementById('cleaning-guide-unlocked-content');
+
+            playSound('click');
+
+            if (checkedCount === 4) {
+                badge.textContent = 'DESPEJE VERIFICADO (4/4)';
+                badge.className = 'self-start sm:self-center px-3 py-1 rounded-full text-xs font-mono font-bold bg-emerald-500/20 text-emerald-300 border border-emerald-400/50';
+                lockedOverlay.classList.add('hidden');
+                unlockedContent.classList.remove('hidden');
+                playSound('step');
+                showToast('success', 'Protocolo de Seguridad Aprobado', 'Se ha habilitado la guía ilustrada de limpieza y la evaluación.');
+            } else {
+                badge.textContent = `BLOQUEADO (${checkedCount}/4)`;
+                badge.className = 'self-start sm:self-center px-3 py-1 rounded-full text-xs font-mono font-bold bg-red-500/20 text-red-300 border border-red-500/40';
+                lockedOverlay.classList.remove('hidden');
+                unlockedContent.classList.add('hidden');
+            }
+        }
+
+        function renderCleaningGuide() {
+            const w = WEAPONS_DATA[currentWeaponId];
+            document.getElementById('guide-weapon-title').textContent = w.name;
+            document.getElementById('quiz-weapon-label').textContent = w.name;
+
+            // Renderizar los 5 pasos ilustrados
+            const stepsContainer = document.getElementById('cleaning-steps-container');
+            stepsContainer.innerHTML = w.cleaningSteps.map((item, index) => `
+                <div class="rounded-2xl bg-slate-900/95 border border-slate-700/90 p-4 flex flex-col justify-between shadow-lg">
+                    <div>
+                        <div class="flex items-center justify-between mb-2">
+                            <span class="text-[11px] font-mono font-bold px-2.5 py-0.5 rounded bg-sky-500/20 text-sky-300 border border-sky-500/30">
+                                FASE 0${index + 1}
+                            </span>
+                        </div>
+                        <h4 class="text-base font-bold text-white mb-2">${item.step}</h4>
+                        <div class="my-3 h-28 rounded-xl bg-slate-950 border border-slate-800 flex items-center justify-center p-2">
+                            ${getCleaningStepIllustration(item.svgType)}
+                        </div>
+                        <p class="text-xs text-slate-300 leading-relaxed">${item.desc}</p>
+                    </div>
+                </div>
+            `).join('');
+
+            // Renderizar preguntas de micro-evaluación
+            renderQuizQuestions();
+        }
+
+        function getCleaningStepIllustration(type) {
+            if (type === 'takedown_bersa') {
+                return `<svg viewBox="0 0 200 90" class="w-full h-full">
+                    <rect x="30" y="20" width="130" height="22" rx="3" fill="#334155" stroke="#94a3b8"/>
+                    <path d="M165 31 H188 M182 26 L188 31 L182 36" stroke="#38bdf8" stroke-width="2.5" stroke-linecap="round"/>
+                    <circle cx="110" cy="52" r="8" fill="#eab308"/>
+                    <rect x="107" y="52" width="6" height="18" rx="2" fill="#eab308"/>
+                    <text x="25" y="80" fill="#eab308" font-family="JetBrains Mono" font-size="9">GIRAR PALANCA 90° ABAJO</text>
+                </svg>`;
+            }
+            if (type === 'takedown_taurus') {
+                return `<svg viewBox="0 0 200 90" class="w-full h-full">
+                    <circle cx="65" cy="38" r="12" fill="#ef4444" fill-opacity="0.3" stroke="#ef4444" stroke-width="2"/>
+                    <circle cx="65" cy="38" r="5" fill="#ef4444"/>
+                    <text x="20" y="65" fill="#fca5a5" font-family="JetBrains Mono" font-size="8">1. BOTÓN DER.</text>
+                    <circle cx="135" cy="38" r="8" fill="#eab308"/>
+                    <rect x="132" y="38" width="6" height="18" fill="#eab308"/>
+                    <text x="102" y="65" fill="#fde047" font-family="JetBrains Mono" font-size="8">2. PALANCA IZQ.</text>
+                </svg>`;
+            }
+            if (type === 'barrel_clean') {
+                return `<svg viewBox="0 0 200 90" class="w-full h-full">
+                    <rect x="45" y="32" width="110" height="16" rx="2" fill="#64748b" stroke="#cbd5e1"/>
+                    <line x1="15" y1="40" x2="185" y2="40" stroke="#eab308" stroke-width="3"/>
+                    <path d="M175 34 L188 40 L175 46" fill="none" stroke="#38bdf8" stroke-width="2"/>
+                    <text x="28" y="72" fill="#38bdf8" font-family="JetBrains Mono" font-size="9">RECÁMARA ➔ BOCA DE CAÑÓN</text>
+                </svg>`;
+            }
+            if (type === 'slide_clean') {
+                return `<svg viewBox="0 0 200 90" class="w-full h-full">
+                    <rect x="35" y="25" width="130" height="24" rx="3" fill="#1e293b" stroke="#64748b"/>
+                    <rect x="75" y="52" width="50" height="12" rx="2" fill="#38bdf8"/>
+                    <path d="M80 45 V52 M90 45 V52 M100 45 V52 M110 45 V52 M120 45 V52" stroke="#eab308" stroke-width="2"/>
+                    <text x="35" y="80" fill="#94a3b8" font-family="JetBrains Mono" font-size="9">CEPILLADO DE RIELES Y CUBETA</text>
+                </svg>`;
+            }
+            if (type === 'oil_bersa' || type === 'oil_taurus') {
+                return `<svg viewBox="0 0 200 90" class="w-full h-full">
+                    <rect x="35" y="45" width="130" height="12" rx="2" fill="#334155" stroke="#64748b"/>
+                    <path d="M70 22 C70 22 63 32 63 36 A7 7 0 0 0 77 36 C77 32 70 22 70 22 Z" fill="#eab308"/>
+                    <path d="M130 22 C130 22 123 32 123 36 A7 7 0 0 0 137 36 C137 32 130 22 130 22 Z" fill="#eab308"/>
+                    <text x="32" y="76" fill="#fde047" font-family="JetBrains Mono" font-size="9">LUBRICACIÓN PUNTUAL (1 GOTA)</text>
+                </svg>`;
+            }
+            return `<svg viewBox="0 0 200 90" class="w-full h-full">
+                <circle cx="100" cy="40" r="22" fill="#10b981" fill-opacity="0.2" stroke="#10b981" stroke-width="2"/>
+                <path d="M90 40 L97 47 L112 32" fill="none" stroke="#34d399" stroke-width="3" stroke-linecap="round"/>
+                <text x="34" y="78" fill="#34d399" font-family="JetBrains Mono" font-size="9">CONTROL FUNCIONAL EN SECO</text>
+            </svg>`;
+        }
+
+        function renderQuizQuestions() {
+            const w = WEAPONS_DATA[currentWeaponId];
+            const container = document.getElementById('quiz-questions-container');
+            document.getElementById('quiz-score-badge').classList.add('hidden');
+
+            container.innerHTML = w.quiz.map((item, qIdx) => `
+                <div id="quiz-card-${qIdx}" class="rounded-xl bg-slate-950/90 border border-slate-800 p-4 space-y-2.5">
+                    <p class="text-xs sm:text-sm font-bold text-white">${qIdx + 1}. ${item.q}</p>
+                    <div class="space-y-2">
+                        ${item.options.map((opt, optIdx) => `
+                            <label class="flex items-center gap-2.5 p-2.5 rounded-lg bg-slate-900/90 border border-slate-800 hover:border-sky-500/50 cursor-pointer text-xs sm:text-sm text-slate-300">
+                                <input type="radio" name="quiz-q-${qIdx}" value="${optIdx}" class="accent-sky-500 w-4 h-4">
+                                <span>${opt}</span>
+                            </label>
+                        `).join('')}
+                    </div>
+                </div>
+            `).join('');
+        }
+
+        function evaluateQuiz() {
+            const w = WEAPONS_DATA[currentWeaponId];
+            let score = 0;
+            let unanswered = 0;
+
+            w.quiz.forEach((item, qIdx) => {
+                const selected = document.querySelector(`input[name="quiz-q-${qIdx}"]:checked`);
+                const card = document.getElementById(`quiz-card-${qIdx}`);
+
+                if (!selected) {
+                    unanswered++;
+                    card.className = 'rounded-xl bg-slate-950/90 border-2 border-amber-500/60 p-4 space-y-2.5';
+                    return;
+                }
+
+                const val = parseInt(selected.value, 10);
+                if (val === item.correct) {
+                    score++;
+                    card.className = 'rounded-xl bg-emerald-950/30 border-2 border-emerald-500 p-4 space-y-2.5';
+                } else {
+                    card.className = 'rounded-xl bg-red-950/30 border-2 border-red-500 p-4 space-y-2.5';
+                }
+            });
+
+            if (unanswered > 0) {
+                playSound('error');
+                showToast('error', 'Evaluación Incompleta', 'Por favor responda las 3 preguntas antes de verificar el puntaje.');
+                return;
+            }
+
+            const badge = document.getElementById('quiz-score-badge');
+            badge.classList.remove('hidden');
+            badge.textContent = `Puntaje Final: ${score} / 3`;
+
+            if (score === 3) {
+                playSound('complete');
+                badge.className = 'px-4 py-1.5 rounded-xl bg-emerald-500/20 border border-emerald-400 text-emerald-300 font-mono font-bold text-sm';
+                showToast('success', '¡Excelente Desempeño!', `Obtuviste 3/3 en el protocolo técnico de la ${w.name}.`);
+            } else {
+                playSound('step');
+                badge.className = 'px-4 py-1.5 rounded-xl bg-amber-500/20 border border-amber-400 text-amber-300 font-mono font-bold text-sm';
+                showToast('info', 'Resultado Registrado', `Obtuviste ${score}/3 respuestas correctas. Revisa los cuadros marcados en rojo.`);
+            }
+        }
+
+        function resetQuiz() {
+            playSound('click');
+            renderQuizQuestions();
+        }
+
+        // Inicialización al cargar la página
+        window.onload = function() {
+            selectWeapon('tpr9');
+        };
+    </script>
+</body>
+</html>
